@@ -21,24 +21,27 @@ function parseThinkingBudget(raw) {
 }
 
 function readInputs() {
-  const apiKey = process.env.INPUT_API_KEY;
-  const prompt = process.env.INPUT_PROMPT;
+  // core.getInput handles the dash-in-name → INPUT_DASH-NAME env var mapping.
+  // Direct process.env.INPUT_API_KEY would read INPUT_API_KEY (underscore),
+  // but GitHub Actions sets INPUT_API-KEY (dash preserved) — only spaces become underscores.
+  const apiKey = core.getInput('api-key');
+  const prompt = core.getInput('prompt');
   if (!apiKey) throw new Error('Missing required input: api-key');
   if (!prompt) throw new Error('Missing required input: prompt');
   return {
     apiKey,
     prompt,
-    mode: process.env.INPUT_CONTEXT || 'auto',
-    output: process.env.INPUT_OUTPUT || 'comment',
-    outputFile: process.env.INPUT_OUTPUT_FILE || 'flash-output.md',
-    model: process.env.INPUT_MODEL || 'gemini-3.5-flash',
-    maxTokens: Number(process.env.INPUT_MAX_TOKENS || '8000'),
-    thinkingBudget: parseThinkingBudget(process.env.INPUT_THINKING_BUDGET),
-    skillsDir: process.env.INPUT_SKILLS || '.agent/skills',
-    agentsMdPath: process.env.INPUT_AGENTS_MD || 'AGENTS.md',
-    prNumber: process.env.INPUT_PR_NUMBER,
-    issueNumber: process.env.INPUT_ISSUE_NUMBER,
-    githubToken: process.env.INPUT_GITHUB_TOKEN,
+    mode: core.getInput('context') || 'auto',
+    output: core.getInput('output') || 'comment',
+    outputFile: core.getInput('output-file') || 'flash-output.md',
+    model: core.getInput('model') || 'gemini-3.5-flash',
+    maxTokens: Number(core.getInput('max-tokens') || '8000'),
+    thinkingBudget: parseThinkingBudget(core.getInput('thinking-budget')),
+    skillsDir: core.getInput('skills') || '.agent/skills',
+    agentsMdPath: core.getInput('agents-md') || 'AGENTS.md',
+    prNumber: core.getInput('pr-number'),
+    issueNumber: core.getInput('issue-number'),
+    githubToken: core.getInput('github-token'),
     repository: process.env.GITHUB_REPOSITORY,
   };
 }

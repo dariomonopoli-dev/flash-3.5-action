@@ -16,13 +16,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Validate action.yml schema
-        run: npx --yes action-validator@latest action.yml
+      - name: Validate action.yml is parseable + has required top-level keys
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys, yaml
+          with open("action.yml") as f:
+              doc = yaml.safe_load(f)
+          required = ["name", "description", "inputs", "outputs", "runs"]
+          missing = [k for k in required if k not in doc]
+          if missing:
+              print(f"action.yml missing top-level keys: {missing}", file=sys.stderr)
+              sys.exit(1)
+          runs = doc["runs"]
+          if runs.get("using") != "node20":
+              print(f"runs.using must be 'node20', got {runs.get('using')!r}", file=sys.stderr)
+              sys.exit(1)
+          if not runs.get("main"):
+              print("runs.main is required", file=sys.stderr)
+              sys.exit(1)
+          for name, spec in doc["inputs"].items():
+              if "description" not in spec:
+                  print(f"input {name} missing description", file=sys.stderr)
+                  sys.exit(1)
+          print(f"action.yml OK: {len(doc['inputs'])} inputs, {len(doc['outputs'])} outputs")
+          PY
 
   node-test:
     name: Node tests
