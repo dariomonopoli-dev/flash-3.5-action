@@ -17,7 +17,7 @@
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.0",
     "@google/genai": "^0.14.0",
-    "globby": "^14.0.2",
+    "globby": "^16.2.0",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
