@@ -260,5 +260,8 @@ Apache-2.0. See [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- [`google-github-actions/run-gemini-cli`](https://github.com/google-github-actions/run-gemini-cli) is the structural reference. Input names and event-handling patterns mirror that project on purpose to make migration cheap.
-- The `SKILL.md` format and skill-request protocol come from Anthropic's Skills system.
+- [`google-github-actions/run-gemini-cli`](https://github.com/google-github-actions/run-gemini-cli) is the structural reference for this action. Many of the input names and event-handling patterns mirror that project, on purpose, to make migration cheap.
+- The `SKILL.md` format and skill-request protocol are adopted from Anthropic's Skills system.
+- Not affiliated with Google, Anthropic, or any model provider. "Gemini" and related marks belong to their respective owners.
+
+
