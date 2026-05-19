@@ -38,7 +38,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dariomonopoli-dev/flash-3.5-action@v1
+      - uses: dariomonopoli-dev/flash-3.5-action@v0.1
         with:
           api-key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
@@ -230,7 +230,7 @@ For most workflows, migration is a one-line change:
 
 ```diff
 - uses: google-github-actions/run-gemini-cli@v0
-+ uses: dariomonopoli-dev/flash-3.5-action@v1
++ uses: dariomonopoli-dev/flash-3.5-action@v0.1
 ```
 
 Input names differ slightly (`gemini_api_key` → `api-key`, `gemini_model` → `model`). Full mapping and side-by-side YAML diffs for the top three use cases live in [docs/migration-from-gemini-cli.md](docs/migration-from-gemini-cli.md).

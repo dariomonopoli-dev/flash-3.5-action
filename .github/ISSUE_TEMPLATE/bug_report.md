@@ -8,7 +8,7 @@ assignees: dariomonopoli-dev
 
 ## Action version
 
-<!-- e.g. dariomonopoli-dev/flash-3.5-action@v1.2.0 -->
+<!-- e.g. dariomonopoli-dev/flash-3.5-action@v0.1.0 -->
 
 ## Workflow snippet
 
@@ -18,7 +18,7 @@ assignees: dariomonopoli-dev
 -->
 
 ```yaml
-- uses: dariomonopoli-dev/flash-3.5-action@v1
+- uses: dariomonopoli-dev/flash-3.5-action@v0.1
   with:
     api-key: ${{ secrets.GEMINI_API_KEY }}
     prompt: "..."

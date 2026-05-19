@@ -20,7 +20,7 @@ labels: feature, triage
 -->
 
 ```yaml
-- uses: dariomonopoli-dev/flash-3.5-action@v1
+- uses: dariomonopoli-dev/flash-3.5-action@v0.1
   with:
     api-key: ${{ secrets.GEMINI_API_KEY }}
     prompt: "..."
