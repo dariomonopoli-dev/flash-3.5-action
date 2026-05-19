@@ -1,0 +1,99 @@
+name: Auto-label Issues by Content
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  auto-label:
+    name: Flash 3.5 auto-labeler
+    runs-on: ubuntu-latest
+    if: github.event.issue.body != ''
+    steps:
+      - name: Ensure label allowlist exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Idempotent: --force updates color/description if the label already exists.
+          for L in bug feature docs question security performance ui ci dx good-first-issue; do
+            gh label create "$L" --force >/dev/null 2>&1 || true
+          done
+
+      - name: Run Flash 3.5 label classifier
+        id: flash
+        uses: dariomonopoli-dev/flash-3.5-action@v1
+        with:
+          api-key: ${{ secrets.GEMINI_API_KEY }}
+          context: issue
+          output: none
+          model: gemini-3.5-flash
+          max-tokens: 1500
+          # Thinking adds no quality for fixed-allowlist labeling; disable for ~6× cheaper runs.
+          thinking-budget: 0
+          issue-number: ${{ github.event.issue.number }}
+          github-token: ${{ github.token }}
+          prompt: |
+            Read the issue body and emit ONLY a comma-separated list of labels.
+            Pick from this allowlist (no others, no synonyms):
+
+            bug, feature, docs, question, security, performance, ui, ci, dx, good-first-issue
+
+            Rules:
+              - Output ONLY the labels, comma-separated, on a single line.
+              - No prose. No prefix. No quotes. No trailing punctuation.
+              - 1-4 labels total. Fewer is better than wrong.
+              - If the issue does not clearly map to any allowlisted label, output: question
+
+            Example valid outputs:
+              bug,performance
+              feature,ui
+              docs
+
+      - name: Apply sanitized labels
+        if: steps.flash.outputs.summary != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          RAW: ${{ steps.flash.outputs.summary }}
+        run: |
+          set -euo pipefail
+          ALLOW="bug,feature,docs,question,security,performance,ui,ci,dx,good-first-issue"
+
+          # Take only the first non-empty line (defend against accidental prose)
+          FIRST_LINE="$(printf '%s\n' "$RAW" | sed -n '/[^[:space:]]/p' | head -n1)"
+          if [ -z "$FIRST_LINE" ]; then
+            echo "Empty model output. Skipping."
+            exit 0
+          fi
+
+          APPLY=""
+          IFS=',' read -ra PARTS <<< "$FIRST_LINE"
+          for raw in "${PARTS[@]}"; do
+            label="$(echo "$raw" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+            [ -z "$label" ] && continue
+            case ",$ALLOW," in
+              *",$label,"*)
+                # Dedupe
+                case ",$APPLY," in
+                  *",$label,"*) ;;
+                  *) if [ -z "$APPLY" ]; then APPLY="$label"; else APPLY="$APPLY,$label"; fi ;;
+                esac
+                ;;
+              *)
+                echo "Rejecting non-allowlisted label: $label"
+                ;;
+            esac
+          done
+
+          if [ -z "$APPLY" ]; then
+            echo "No labels survived the allowlist. Skipping."
+            exit 0
+          fi
+
+          echo "Applying labels: $APPLY"
+          gh issue edit "$ISSUE" --add-label "$APPLY"

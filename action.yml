@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+name: 'Flash 3.5 Action'
+author: 'Dario Monopoli'
+description: 'Run Gemini 3.5 Flash on your repo. Skills-aware, cost-capped, AGENTS.md compatible.'
+branding:
+  icon: 'zap'
+  color: 'blue'
+
+inputs:
+  api-key:
+    description: 'Gemini API key. Get one at https://aistudio.google.com/apikey.'
+    required: true
+  prompt:
+    description: 'Prompt for the agent.'
+    required: true
+  context:
+    description: 'How to assemble repo context. One of: pr, issue, files, repo, none, auto.'
+    required: false
+    default: 'auto'
+  output:
+    description: 'Where to deliver the response. One of: comment, summary, check, file, none. (Pair file with actions/upload-artifact to upload.)'
+    required: false
+    default: 'comment'
+  output-file:
+    description: 'Path for output when output=file or output=artifact.'
+    required: false
+    default: 'flash-output.md'
+  model:
+    description: 'Gemini model. Default is gemini-3.5-flash.'
+    required: false
+    default: 'gemini-3.5-flash'
+  max-tokens:
+    description: 'Hard cap on total input+output tokens for the run. Aborts if exceeded.'
+    required: false
+    default: '8000'
+  thinking-budget:
+    description: 'Thinking-token cap for thinking-enabled Gemini models (e.g. gemini-2.5+/3.x). 0 disables thinking (most predictable cost). -1 lets the model decide. Positive integer caps thinking at that many tokens. Leave unset for the model default.'
+    required: false
+    default: ''
+  skills:
+    description: 'Directory containing SKILL.md files. Auto-loaded into the system prompt.'
+    required: false
+    default: '.agent/skills'
+  agents-md:
+    description: 'Path to AGENTS.md. Prepended to the system prompt when present.'
+    required: false
+    default: 'AGENTS.md'
+  pr-number:
+    description: 'PR number. Defaults to the event payload.'
+    required: false
+    default: '${{ github.event.pull_request.number }}'
+  issue-number:
+    description: 'Issue number. Defaults to the event payload.'
+    required: false
+    default: '${{ github.event.issue.number }}'
+  github-token:
+    description: 'Token for posting comments, creating checks, applying labels.'
+    required: false
+    default: '${{ github.token }}'
+
+outputs:
+  summary:
+    description: 'Full text response from the agent.'
+  error:
+    description: 'Error string when the run fails.'
+  artifact-path:
+    description: 'Path to the file written when output=file. Pair with actions/upload-artifact to upload.'
+  tokens-used:
+    description: 'Total tokens consumed (input + output).'
+  budget-remaining:
+    description: 'Tokens left under the max-tokens cap.'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

@@ -1,0 +1,91 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    name: Flash 3.5 issue triage
+    runs-on: ubuntu-latest
+    if: github.event.issue.body != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Flash 3.5 triage
+        id: flash
+        uses: dariomonopoli-dev/flash-3.5-action@v1
+        with:
+          api-key: ${{ secrets.GEMINI_API_KEY }}
+          context: issue
+          output: comment
+          model: gemini-3.5-flash
+          max-tokens: 4000
+          issue-number: ${{ github.event.issue.number }}
+          github-token: ${{ github.token }}
+          prompt: |
+            You are triaging a freshly-opened GitHub issue. Be terse, accurate, and
+            optimize the output so a human maintainer can scan it in under 10 seconds.
+
+            Produce markdown with EXACTLY this shape:
+
+            **Type:** one of `bug`, `feature`, `question`, `docs`, `security`
+            **Priority:** one of `P0`, `P1`, `P2`, `P3`
+            **Summary:** two sentences. First sentence: what the user is reporting.
+            Second sentence: the likely root cause or the requested capability.
+
+            **Reproduction quality:** `clear`, `partial`, or `missing`
+            **Suggested next step:** one short imperative sentence for the maintainer.
+
+            Then, on a NEW LINE at the very end, emit exactly one line of the form:
+
+            LABELS: label-a,label-b,label-c
+
+            Pick 1-4 labels from this allowlist only:
+              bug, feature, docs, question, security, performance, ui, ci, dx,
+              needs-repro, good-first-issue, p0, p1, p2, p3
+
+            Do not invent labels. Do not add prose after the LABELS line.
+
+      - name: Apply labels from triage output
+        if: steps.flash.outputs.summary != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          SUMMARY: ${{ steps.flash.outputs.summary }}
+        run: |
+          set -euo pipefail
+          # Extract the LABELS: line (last occurrence wins)
+          LABELS_LINE="$(printf '%s\n' "$SUMMARY" | grep -E '^LABELS:' | tail -n1 || true)"
+          if [ -z "$LABELS_LINE" ]; then
+            echo "No LABELS: line found in triage output. Skipping label apply."
+            exit 0
+          fi
+
+          RAW="${LABELS_LINE#LABELS:}"
+          # Trim whitespace, split on commas
+          ALLOW="bug,feature,docs,question,security,performance,ui,ci,dx,needs-repro,good-first-issue,p0,p1,p2,p3"
+          APPLY=""
+          IFS=',' read -ra PARTS <<< "$RAW"
+          for raw in "${PARTS[@]}"; do
+            label="$(echo "$raw" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+            [ -z "$label" ] && continue
+            case ",$ALLOW," in
+              *",$label,"*)
+                if [ -z "$APPLY" ]; then APPLY="$label"; else APPLY="$APPLY,$label"; fi
+                ;;
+            esac
+          done
+
+          if [ -z "$APPLY" ]; then
+            echo "No allowlisted labels parsed. Skipping."
+            exit 0
+          fi
+
+          echo "Applying labels: $APPLY"
+          gh issue edit "$ISSUE" --add-label "$APPLY"

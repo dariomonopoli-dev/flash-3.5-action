@@ -1,0 +1,108 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-action-yml:
+    name: Validate action.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate action.yml schema
+        run: npx --yes action-validator@latest action.yml
+
+  node-test:
+    name: Node tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: node --test tests/
+
+  verify-dist:
+    name: Verify dist/ is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Check dist/ diff
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code dist/; then
+            echo ""
+            echo "::error::dist/ is out of sync. Run \`npm run build\` and commit the result."
+            exit 1
+          fi
+
+  smoke-test:
+    name: Smoke test (action runs end-to-end)
+    runs-on: ubuntu-latest
+    # Only run on PRs from the same repo (forks cannot access secrets)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if GEMINI_API_KEY is missing
+        id: gate
+        env:
+          HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "GEMINI_API_KEY not configured; skipping smoke test."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run action against itself
+        if: steps.gate.outputs.run == 'true'
+        uses: ./
+        with:
+          api-key: ${{ secrets.GEMINI_API_KEY }}
+          context: repo
+          output: none
+          model: gemini-3.5-flash
+          max-tokens: 200
+          github-token: ${{ github.token }}
+          prompt: |
+            Respond with the single word "ok" so we can confirm the action runs end-to-end.

@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild-dist:
+    name: Auto-rebuild dist/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use default GITHUB_TOKEN; push back to the same branch.
+          token: ${{ github.token }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit dist/ if changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet dist/; then
+            echo "dist/ is already up to date. Nothing to commit."
+            exit 0
+          fi
+
+          git config user.name  "flash-3.5-bot"
+          git config user.email "flash-3.5-bot@users.noreply.github.com"
+          git add dist/
+          git commit -m "chore: rebuild dist [skip ci]"
+          git push origin HEAD:${GITHUB_REF#refs/heads/}

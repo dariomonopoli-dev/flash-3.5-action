@@ -1,0 +1,129 @@
+name: Weekly Dependency Audit
+
+on:
+  schedule:
+    # Mondays 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  audit:
+    name: Flash 3.5 dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run npm audit (collect findings)
+        run: |
+          set -euo pipefail
+          # Do not fail the job on findings — Flash will summarize them.
+          npm audit --json > audit.json || true
+          echo "audit.json size: $(wc -c < audit.json) bytes"
+
+      - name: Run npm outdated (best-effort)
+        run: |
+          set -euo pipefail
+          npm outdated --json > outdated.json || true
+          # `npm outdated` exits non-zero when outdated packages exist; tolerate it.
+          [ -f outdated.json ] || echo '{}' > outdated.json
+
+      - name: Build prompt payload
+        id: payload
+        run: |
+          set -euo pipefail
+          # Cap each input at 20 KB to stay well under the 12k token budget.
+          head -c 20000 audit.json    > audit-trimmed.json
+          head -c 20000 outdated.json > outdated-trimmed.json
+          {
+            echo 'audit<<AUDIT_EOF'
+            cat audit-trimmed.json
+            echo
+            echo 'AUDIT_EOF'
+            echo 'outdated<<OUTDATED_EOF'
+            cat outdated-trimmed.json
+            echo
+            echo 'OUTDATED_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate audit report with Flash 3.5
+        id: flash
+        uses: dariomonopoli-dev/flash-3.5-action@v1
+        with:
+          api-key: ${{ secrets.GEMINI_API_KEY }}
+          context: none
+          output: file
+          output-file: dep-audit.md
+          model: gemini-3.5-flash
+          max-tokens: 12000
+          github-token: ${{ github.token }}
+          prompt: |
+            Produce a prioritized dependency-audit report in markdown that a maintainer
+            can act on in one sitting. Use the npm audit and npm outdated outputs below.
+
+            npm audit JSON (truncated to 20 KB):
+            ${{ steps.payload.outputs.audit }}
+
+            npm outdated JSON (truncated to 20 KB):
+            ${{ steps.payload.outputs.outdated }}
+
+            Sections (in this order — omit a section only if it has zero entries):
+
+            ## Summary
+            One paragraph. Total advisories by severity. Whether immediate action
+            is required this week.
+
+            ## Critical and High CVEs
+            For each advisory: package name, installed version, fixed version,
+            advisory ID with link, brief description, suggested upgrade command.
+
+            ## Outdated major versions
+            Packages whose latest major is ahead of the installed major. Note any
+            known breaking changes if you recognize the package.
+
+            ## Deprecated packages
+            Anything flagged as deprecated by the registry. Suggest replacements.
+
+            ## Recommended actions
+            Numbered list. Order by impact / effort ratio. Include exact commands
+            (`npm install pkg@^X`, `npm uninstall pkg`, etc.).
+
+            ## Notes
+            Anything ambiguous or worth a human eyeball.
+
+            Do not invent CVE IDs or version numbers. If a field is missing in the
+            input JSON, omit it rather than guessing.
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # `gh label create` is idempotent with --force; ignore failures from races.
+          gh label create dependencies --color 0e8a16 --description 'Dependency updates and audits' --force || true
+          gh label create audit        --color fbca04 --description 'Automated audit findings'        --force || true
+
+      - name: Open audit issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ ! -s dep-audit.md ]; then
+            echo "dep-audit.md is empty. Skipping issue creation."
+            exit 0
+          fi
+          TITLE="Weekly dependency audit: $(date -u +%Y-%m-%d)"
+          gh issue create \
+            --title "$TITLE" \
+            --body-file dep-audit.md \
+            --label "dependencies,audit"

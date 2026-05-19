@@ -1,0 +1,183 @@
+name: Changelog from PRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      since_tag:
+        description: 'Tag to diff from (use "latest" for most recent tag)'
+        required: false
+        default: 'latest'
+      release_tag:
+        description: 'New release tag (e.g. v1.4.0)'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  build-changelog:
+    name: Generate changelog with Flash 3.5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve since-tag and merge window
+        id: window
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SINCE_TAG_INPUT: ${{ github.event.inputs.since_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ "$SINCE_TAG_INPUT" = "latest" ] || [ -z "$SINCE_TAG_INPUT" ]; then
+            SINCE_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '')"
+          else
+            SINCE_TAG="$SINCE_TAG_INPUT"
+          fi
+
+          if [ -z "$SINCE_TAG" ]; then
+            echo "No prior tag found. Using repo creation date."
+            SINCE_DATE="$(git log --reverse --format=%cI | head -n1 | cut -dT -f1)"
+          else
+            SINCE_DATE="$(git log -1 --format=%cI "$SINCE_TAG" | cut -dT -f1)"
+          fi
+
+          echo "since_tag=$SINCE_TAG" >> "$GITHUB_OUTPUT"
+          echo "since_date=$SINCE_DATE" >> "$GITHUB_OUTPUT"
+          echo "Diffing from tag '$SINCE_TAG' (date $SINCE_DATE) to HEAD."
+
+      - name: Collect merged PRs in window
+        id: prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SINCE_DATE: ${{ steps.window.outputs.since_date }}
+        run: |
+          set -euo pipefail
+          gh pr list \
+            --base main \
+            --state merged \
+            --search "merged:>$SINCE_DATE" \
+            --limit 500 \
+            --json number,title,url,labels,mergedAt,author \
+            > prs.json
+          echo "Collected $(jq length prs.json) merged PRs."
+
+      - name: Build prompt payload
+        id: payload
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          SINCE_TAG: ${{ steps.window.outputs.since_tag }}
+        run: |
+          set -euo pipefail
+          # Cap at 50 KB to stay under preflight token budget (~12.5k tokens).
+          head -c 50000 prs.json > prs-trimmed.json
+          BYTES=$(wc -c < prs-trimmed.json)
+          echo "Payload size: $BYTES bytes (capped at 50000)."
+          {
+            echo 'json<<PRS_EOF'
+            cat prs-trimmed.json
+            echo
+            echo 'PRS_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog section
+        id: flash
+        uses: dariomonopoli-dev/flash-3.5-action@v1
+        with:
+          api-key: ${{ secrets.GEMINI_API_KEY }}
+          context: none
+          output: file
+          output-file: CHANGELOG_NEW.md
+          model: gemini-3.5-flash
+          max-tokens: 16000
+          github-token: ${{ github.token }}
+          prompt: |
+            Produce a single Keep a Changelog (https://keepachangelog.com) section for
+            release tag "${{ github.event.inputs.release_tag }}" using the merged PRs
+            JSON below.
+
+            Merged PRs JSON (truncated to 50 KB):
+            ${{ steps.payload.outputs.json }}
+
+            Output ONLY this section — no preamble, no trailing notes, no closing prose.
+
+            Format:
+
+            ## [${{ github.event.inputs.release_tag }}] - YYYY-MM-DD
+
+            ### Added
+            - Short imperative description ([#123](url)) — @author
+
+            ### Changed
+            - ...
+
+            ### Fixed
+            - ...
+
+            ### Removed
+            - ...
+
+            ### Security
+            - ...
+
+            Rules:
+              - Categorize using PR labels first, then title keywords.
+                * `feat:` / "add" / `enhancement` label  -> Added
+                * `refactor:` / `chore:` / `perf:` / "update"  -> Changed
+                * `fix:` / "bug" label  -> Fixed
+                * "remove" / "drop" / "deprecate"  -> Removed
+                * `security` label / CVE references  -> Security
+              - Omit empty subsections entirely (do not leave "_None._").
+              - Use today's date in ISO format for the heading.
+              - Strip conventional-commit prefixes (`feat:`, `fix:`, etc.) from titles.
+              - Sort entries inside each subsection alphabetically.
+              - Always include the PR number as a markdown link and the author handle.
+
+      - name: Prepend to CHANGELOG.md and commit
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f CHANGELOG_NEW.md ]; then
+            echo "No CHANGELOG_NEW.md produced by Flash. Aborting."
+            exit 1
+          fi
+
+          if [ ! -f CHANGELOG.md ]; then
+            printf "# Changelog\n\n" > CHANGELOG.md
+          fi
+
+          # Preserve any leading "# Changelog" header; prepend new section after it.
+          HEADER="$(head -n 1 CHANGELOG.md)"
+          if [[ "$HEADER" == \#* ]]; then
+            tail -n +2 CHANGELOG.md > CHANGELOG.body.tmp
+            {
+              printf '%s\n\n' "$HEADER"
+              cat CHANGELOG_NEW.md
+              printf '\n'
+              cat CHANGELOG.body.tmp
+            } > CHANGELOG.merged.tmp
+          else
+            {
+              printf '# Changelog\n\n'
+              cat CHANGELOG_NEW.md
+              printf '\n'
+              cat CHANGELOG.md
+            } > CHANGELOG.merged.tmp
+          fi
+
+          mv CHANGELOG.merged.tmp CHANGELOG.md
+          rm -f CHANGELOG.body.tmp CHANGELOG_NEW.md prs-trimmed.json prs.json
+
+          git config user.name  "flash-3.5-bot"
+          git config user.email "flash-3.5-bot@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs(changelog): generate notes for $RELEASE_TAG [skip ci]"
+          git push origin HEAD

@@ -1,0 +1,68 @@
+name: PR Security Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  security-review:
+    name: Flash 3.5 security review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Flash 3.5 security review
+        id: flash
+        uses: dariomonopoli-dev/flash-3.5-action@v1
+        with:
+          api-key: ${{ secrets.GEMINI_API_KEY }}
+          context: pr
+          output: comment
+          max-tokens: 12000
+          model: gemini-3.5-flash
+          pr-number: ${{ github.event.pull_request.number }}
+          github-token: ${{ github.token }}
+          prompt: |
+            You are a senior application-security engineer reviewing this pull request.
+            Examine ONLY the diff for this PR plus immediately relevant context.
+
+            Check for the following classes of issues:
+              - Hardcoded secrets, API keys, tokens, or credentials
+              - SQL injection (string-concatenated queries, missing parameterization)
+              - Cross-site scripting (unescaped output, dangerouslySetInnerHTML, innerHTML)
+              - Insecure direct object references (IDOR) — missing ownership/authorization checks
+              - Authentication bypass, broken access control, missing auth on new endpoints
+              - Path traversal, command injection, SSRF
+              - Vulnerable, deprecated, or pinned-to-old dependencies introduced by this PR
+              - CSRF protection regressions on state-changing routes
+              - Information disclosure via error messages or logs
+
+            Output a markdown report with EXACTLY these sections, in this order:
+
+            ## Summary
+            One short paragraph (3-4 sentences max) describing overall risk posture of this PR.
+
+            ## Critical
+            Issues that block merge. For each: file path, line range, what is wrong, why it matters.
+
+            ## High
+            Serious bugs that should be fixed before merge.
+
+            ## Medium
+            Maintainability or defense-in-depth concerns.
+
+            ## Low
+            Style, naming, or minor hygiene.
+
+            ## Suggested fixes
+            Concrete code suggestions or patches for the top 3 issues, in fenced code blocks.
+
+            If a section has no findings, write "_None._" — do not omit the section.
+            Do NOT invent issues to fill sections. False positives erode trust.

@@ -1,0 +1,26 @@
+{
+  "name": "flash-3.5-action",
+  "version": "0.1.0",
+  "description": "GitHub Action that runs Gemini 3.5 Flash on your repo. Skills-aware, cost-capped, AGENTS.md compatible.",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "ncc build src/runner.js -o dist --minify --license licenses.txt",
+    "start": "node src/runner.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.0",
+    "@google/genai": "^0.14.0",
+    "globby": "^14.0.2",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.3"
+  }
+}
