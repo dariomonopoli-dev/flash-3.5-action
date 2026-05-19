@@ -7,9 +7,9 @@ Run Gemini 3.5 Flash on your repo from a GitHub workflow.
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-flash--3.5--action-blue)](https://github.com/marketplace/actions/flash-3-5-action)
 [![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
-![Smoke test passing against gemini-3.5-flash — Tokens used: 143; remaining=57](docs/smoke-test.png)
+![Smoke test passing against gemini-3.5-flash, Tokens used: 143; remaining=57](docs/smoke-test.png)
 
-PR review, issue triage, changelog generation, dependency audits, content-based labeling — all from one workflow step.
+PR review, issue triage, changelog generation, dependency audits, content-based labeling, all from one workflow step.
 
 I built this because [Gemini CLI is sunsetting for Google AI Pro, Ultra, and the free Code Assist tier on June 18, 2026](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/), and the existing wrappers either install a 150 MB CLI on every run or quietly under-count tokens by ignoring Gemini 2.5+/3.x thinking output.
 
@@ -75,8 +75,8 @@ If you need Vertex AI, Workload Identity Federation, or the full Gemini CLI exte
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `api-key` | yes | — | Gemini API key. Store as a repo secret (typically `GEMINI_API_KEY`). Never log this value. |
-| `prompt` | yes | — | The instruction handed to the agent. Multi-line YAML works. Skill bodies and `AGENTS.md` are appended automatically. |
+| `api-key` | yes | - | Gemini API key. Store as a repo secret (typically `GEMINI_API_KEY`). Never log this value. |
+| `prompt` | yes | - | The instruction handed to the agent. Multi-line YAML works. Skill bodies and `AGENTS.md` are appended automatically. |
 | `context` | no | `auto` | One of `pr`, `issue`, `files`, `repo`, `none`, `auto`. `auto` picks based on the triggering event. |
 | `output` | no | `comment` | One of `comment`, `summary`, `check`, `file`, `none`. Pair `file` with `actions/upload-artifact` to upload. |
 | `output-file` | no | `flash-output.md` | Path used when `output` is `file`. Relative to the workspace. |
@@ -114,11 +114,11 @@ Get a Gemini API key from [https://aistudio.google.com/apikey](https://aistudio.
 
 Five complete workflows live in [`examples/`](examples/). Copy any of them into `.github/workflows/` and adjust the prompt:
 
-- [examples/pr-security-review.yml](examples/pr-security-review.yml) — Security-focused PR review on every open/sync.
-- [examples/issue-triage.yml](examples/issue-triage.yml) — Auto-classifies and labels new issues.
-- [examples/changelog-from-prs.yml](examples/changelog-from-prs.yml) — Generates CHANGELOG sections from merged PRs.
-- [examples/weekly-dependency-audit.yml](examples/weekly-dependency-audit.yml) — Scheduled dependency vulnerability audit.
-- [examples/auto-label-by-content.yml](examples/auto-label-by-content.yml) — Labels issues by content using a controlled allowlist.
+- [examples/pr-security-review.yml](examples/pr-security-review.yml): Security-focused PR review on every open/sync.
+- [examples/issue-triage.yml](examples/issue-triage.yml): Auto-classifies and labels new issues.
+- [examples/changelog-from-prs.yml](examples/changelog-from-prs.yml): Generates CHANGELOG sections from merged PRs.
+- [examples/weekly-dependency-audit.yml](examples/weekly-dependency-audit.yml): Scheduled dependency vulnerability audit.
+- [examples/auto-label-by-content.yml](examples/auto-label-by-content.yml): Labels issues by content using a controlled allowlist.
 
 ## Skills and AGENTS.md
 
@@ -199,8 +199,8 @@ The runner parses the tag, looks up the skill, and appends the body to the user 
 
 `max-tokens` is a hard cap, not a soft target. Enforcement happens in two places:
 
-1. **Preflight** — before the first API call, the runner estimates input tokens from `systemPrompt + userPrompt` using a 4-chars/token heuristic. If that estimate already exceeds the cap, the run aborts before any billing.
-2. **Per-iteration** — after each model call the runner records the API-reported token usage. If the running total crosses the cap, the next iteration is skipped and the loop exits with a `BudgetExceededError`.
+1. **Preflight**. Before the first API call, the runner estimates input tokens from `systemPrompt + userPrompt` using a 4-chars/token heuristic. If that estimate already exceeds the cap, the run aborts before any billing.
+2. **Per-iteration**. After each model call the runner records the API-reported token usage. If the running total crosses the cap, the next iteration is skipped and the loop exits with a `BudgetExceededError`.
 
 The runner counts all three billable categories: prompt input, visible response, and hidden "thinking" tokens used by Gemini 2.5+/3.x flash models. It reads `responseTokenCount` and `thoughtsTokenCount` directly from the API's usage metadata, so reported `tokens-used` matches what Google bills.
 
@@ -239,10 +239,10 @@ Input names differ slightly (`gemini_api_key` → `api-key`, `gemini_model` → 
 
 No date promises beyond the June 18 deadline.
 
-- **v0.2** — TypeScript migration, response streaming.
-- **v0.3** — Native artifact format that mirrors Antigravity task artifacts.
-- **v0.4** — Dynamic subagent orchestration (`<subagent .../>` tags with isolated context windows).
-- **v1.0** — Optional Antigravity CLI backend, switchable via `backend:` input, when `--headless` ships.
+- **v0.2**: TypeScript migration, response streaming.
+- **v0.3**: Native artifact format that mirrors Antigravity task artifacts.
+- **v0.4**: Dynamic subagent orchestration (`<subagent .../>` tags with isolated context windows).
+- **v1.0**: Optional Antigravity CLI backend, switchable via `backend:` input, when `--headless` ships.
 
 Not planned:
 
