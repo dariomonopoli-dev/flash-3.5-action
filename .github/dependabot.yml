@@ -15,6 +15,20 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: scope
+    # Major bumps on runtime deps need a manual smoke-test against gemini-3.5-flash
+    # before merging — they break the bundle or the cost-guard accounting silently.
+    # Patch and minor bumps continue to auto-open PRs as normal.
+    ignore:
+      - dependency-name: "@google/genai"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@actions/core"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@actions/github"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "globby"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "gray-matter"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions used by workflows in this repo
   - package-ecosystem: github-actions

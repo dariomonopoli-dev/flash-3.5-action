@@ -71,5 +71,5 @@ outputs:
     description: 'Tokens left under the max-tokens cap.'
 
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/index.js'
