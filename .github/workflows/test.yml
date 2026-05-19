@@ -29,8 +29,9 @@ jobs:
               print(f"action.yml missing top-level keys: {missing}", file=sys.stderr)
               sys.exit(1)
           runs = doc["runs"]
-          if runs.get("using") != "node20":
-              print(f"runs.using must be 'node20', got {runs.get('using')!r}", file=sys.stderr)
+          allowed = {"node20", "node24"}
+          if runs.get("using") not in allowed:
+              print(f"runs.using must be one of {sorted(allowed)}, got {runs.get('using')!r}", file=sys.stderr)
               sys.exit(1)
           if not runs.get("main"):
               print("runs.main is required", file=sys.stderr)

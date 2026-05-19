@@ -7,6 +7,8 @@ GitHub Action that runs Gemini 3.5 Flash on your repo. Skills-aware. Cost-capped
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-flash--3.5--action-blue)](https://github.com/marketplace/actions/flash-3-5-action)
 [![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
+![Smoke test passing against gemini-3.5-flash — Tokens used: 143; remaining=57](docs/smoke-test.png)
+
 Flash 3.5 Action runs Gemini 3.5 Flash against your repository as a GitHub Action, handling PR review, issue triage, changelog generation, dependency audits, and content-based labeling from a single workflow step. It is built for teams migrating off `google-github-actions/run-gemini-cli` before [Google's June 18, 2026 sunset](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/) of Gemini CLI for Google AI Pro, Ultra, and free Gemini Code Assist tiers, and for anyone who wants a lightweight Flash-specific runner with real cost controls. What sets it apart: skills auto-discovery from `.agent/skills/`, a hard token budget that aborts on overrun, native `AGENTS.md` support, and one configuration that works across Claude Code, Codex, and Antigravity 2.0.
 
 > **Note**
