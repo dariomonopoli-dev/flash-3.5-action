@@ -1,18 +1,21 @@
 # Flash 3.5 Action
 
-GitHub Action that runs Gemini 3.5 Flash on your repo. Skills-aware. Cost-capped. Honest.
+Run Gemini 3.5 Flash on your repo from a GitHub workflow.
 
 [![GitHub release](https://img.shields.io/github/v/release/dariomonopoli-dev/flash-3.5-action?include_prereleases&sort=semver)](https://github.com/dariomonopoli-dev/flash-3.5-action/releases)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-flash--3.5--action-blue)](https://github.com/marketplace/actions/flash-3-5-action)
 [![Node.js 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 
-![Smoke test passing against gemini-3.5-flash — Tokens used: 143; remaining=57](docs/smoke-test.png)
+![Smoke test passing against gemini-3.5-flash, Tokens used: 143; remaining=57](docs/smoke-test.png)
 
-Flash 3.5 Action runs Gemini 3.5 Flash against your repository as a GitHub Action, handling PR review, issue triage, changelog generation, dependency audits, and content-based labeling from a single workflow step. It is built for teams migrating off `google-github-actions/run-gemini-cli` before [Google's June 18, 2026 sunset](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/) of Gemini CLI for Google AI Pro, Ultra, and free Gemini Code Assist tiers, and for anyone who wants a lightweight Flash-specific runner with real cost controls. What sets it apart: skills auto-discovery from `.agent/skills/`, a hard token budget that aborts on overrun, native `AGENTS.md` support, and one configuration that works across Claude Code, Codex, and Antigravity 2.0.
+PR review, issue triage, changelog generation, dependency audits, content-based labeling, all from one workflow step.
 
-> **Note**
-> This is a JavaScript Action (not a composite action). It calls the Gemini 3.5 Flash API directly through `@google/genai`. It is intentionally **not** an Antigravity CLI wrapper — as of May 19, 2026, Antigravity CLI is closed-source and does not expose a headless mode suitable for CI. When that changes, this action will offer Antigravity CLI as an opt-in backend (see roadmap).
+I built this because [Gemini CLI is sunsetting for Google AI Pro, Ultra, and the free Code Assist tier on June 18, 2026](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/), and the existing wrappers either install a 150 MB CLI on every run or quietly under-count tokens by ignoring Gemini 2.5+/3.x thinking output.
+
+Differences from `run-gemini-cli`: skills auto-discovery from `.agent/skills/`, a token budget that aborts on overrun, native `AGENTS.md` support, one config that works in Claude Code, Codex, and Antigravity 2.0.
+
+> **Note**: This is a JS Action, not a composite. It calls Gemini directly via `@google/genai`. It's not a wrapper around Antigravity CLI because Antigravity CLI is closed-source and has no headless mode as of May 2026. If that changes, Antigravity will become an opt-in backend.
 
 ## Quick start
 
@@ -46,42 +49,41 @@ jobs:
           max-tokens: 8000
 ```
 
-That's it. The action checks out the PR diff, runs Gemini 3.5 Flash with your prompt, and posts the result as a single PR comment. If the run exceeds `max-tokens`, it aborts cleanly with a `BudgetExceededError` instead of silently overrunning your bill.
+The action grabs the PR diff, runs Gemini 3.5 Flash with your prompt, and posts the result as a single PR comment. Over the `max-tokens` cap it throws `BudgetExceededError` and the step fails. No silent overrun.
 
 ## Why this exists
 
-The Gemini CLI consumer sunset is **June 18, 2026**. Teams using `google-github-actions/run-gemini-cli` need a migration path. `run-gemini-cli` works fine for many teams, but it is a composite action that installs the full Gemini CLI on every run — heavy, slow, and tied to the entire CLI feature set. Flash 3.5 Action is the lightweight, Flash-focused alternative: a single bundled `dist/index.js`, no CLI install, no Node version mismatch surprises, hard cost ceilings, and an interface designed around the workflows people actually run in CI (PR review, triage, changelog, audit, labeling).
+`run-gemini-cli` works fine for many teams, but it's a composite action that installs the full Gemini CLI on every run. That's slow, heavy, and tied to the entire CLI surface even if you only want one workflow.
+
+Flash 3.5 Action is the lightweight, Flash-only alternative. One bundled `dist/index.js`, no CLI install, no Node version mismatch, a real cost ceiling, and an interface shaped around the workflows people actually run in CI.
 
 ## Comparison
 
 |  | flash-3.5-action | google-github-actions/run-gemini-cli |
 |---|---|---|
 | Action type | JS Action (bundled) | Composite |
-| Cold start | ~2s (single `dist/index.js`) | ~30-60s (full Gemini CLI install) |
-| Token budget enforcement | Hard cap, run aborts | None |
+| Cold start | ~2s | ~30–60s (full CLI install) |
+| Token budget | Hard cap, run aborts | None |
 | Default model | `gemini-3.5-flash` | `gemini-2.5-pro` |
 | Skills (`.agent/skills/`) | Auto-discovered | Not native |
 | `AGENTS.md` | First-class | Not native |
-| Cross-tool config | One `AGENTS.md` works in Claude Code, Codex, Antigravity 2.0 | Tied to Gemini CLI |
-| Footprint | ~1MB bundled | ~150MB npm install |
-| License | Apache-2.0 | Apache-2.0 |
-| Maintainer | Community | Google |
+| Footprint | ~1 MB bundled | ~150 MB npm install |
 
-If you need Vertex AI, Workload Identity Federation, or the full Gemini CLI extension catalog, stay on `run-gemini-cli` for now. Those are on the roadmap but not yet supported here. See [docs/migration-from-gemini-cli.md](docs/migration-from-gemini-cli.md) for the full input-by-input mapping.
+If you need Vertex AI, Workload Identity Federation, or the full Gemini CLI extension catalog, stay on `run-gemini-cli`. Those are on the roadmap but not supported yet. See [docs/migration-from-gemini-cli.md](docs/migration-from-gemini-cli.md) for the input-by-input mapping.
 
 ## Inputs
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `api-key` | yes | — | Gemini API key. Store as a repo secret (typically `GEMINI_API_KEY`). Never log this value. |
-| `prompt` | yes | — | The instruction handed to the agent. Supports multi-line YAML. Skill bodies and `AGENTS.md` are appended automatically. |
-| `context` | no | `auto` | One of `pr`, `issue`, `files`, `repo`, `none`, `auto`. `auto` infers from the triggering event. |
-| `output` | no | `comment` | One of `comment`, `summary`, `check`, `file`, `none`. Pair `file` with `actions/upload-artifact` to upload to the Actions artifact store. |
+| `api-key` | yes | - | Gemini API key. Store as a repo secret (typically `GEMINI_API_KEY`). Never log this value. |
+| `prompt` | yes | - | The instruction handed to the agent. Multi-line YAML works. Skill bodies and `AGENTS.md` are appended automatically. |
+| `context` | no | `auto` | One of `pr`, `issue`, `files`, `repo`, `none`, `auto`. `auto` picks based on the triggering event. |
+| `output` | no | `comment` | One of `comment`, `summary`, `check`, `file`, `none`. Pair `file` with `actions/upload-artifact` to upload. |
 | `output-file` | no | `flash-output.md` | Path used when `output` is `file`. Relative to the workspace. |
-| `model` | no | `gemini-3.5-flash` | Model ID. Override only if you have access to a newer Flash variant. |
-| `max-tokens` | no | `8000` | Hard budget cap on total tokens (prompt + response + thinking). Preflight aborts before the first call if estimated input already exceeds the cap; otherwise overruns are capped at one final completion. |
+| `model` | no | `gemini-3.5-flash` | Model ID. Only override if you have access to a newer Flash variant. |
+| `max-tokens` | no | `8000` | Hard cap on total tokens (prompt + response + thinking). Preflight aborts before the first call if the estimate already exceeds the cap; otherwise overruns are capped at one final completion. |
 | `thinking-budget` | no | _model default_ | Thinking-token cap for Gemini 2.5+/3.x flash models. `0` disables thinking for predictable cost. `-1` lets the model decide. Positive integer caps thinking at that many tokens. |
-| `skills` | no | `.agent/skills` | Directory of `SKILL.md` files. Auto-discovered and made available to the agent on request. |
+| `skills` | no | `.agent/skills` | Directory of `SKILL.md` files. Auto-discovered and offered to the agent on request. |
 | `agents-md` | no | `AGENTS.md` | Path to the `AGENTS.md` file. Injected as a system message if present. |
 | `pr-number` | no | from event | Override the PR number resolved from the triggering event. |
 | `issue-number` | no | from event | Override the issue number resolved from the triggering event. |
@@ -95,32 +97,32 @@ If you need Vertex AI, Workload Identity Federation, or the full Gemini CLI exte
 | `error` | Error message if the run failed. Empty string on success. |
 | `artifact-path` | Path to the file written when `output: file`. Pair with `actions/upload-artifact` to upload. |
 | `tokens-used` | Total tokens consumed across all iterations. |
-| `budget-remaining` | `max-tokens` minus `tokens-used`. Useful for follow-up steps. |
+| `budget-remaining` | `max-tokens` minus `tokens-used`, clamped at 0. |
 
 ## Auth
 
-You need a Gemini API key. Get one from [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey), then add it as a repository secret named `GEMINI_API_KEY`:
+Get a Gemini API key from [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) and add it as a repo secret:
 
-1. Go to your repo on GitHub → **Settings** → **Secrets and variables** → **Actions**.
-2. Click **New repository secret**.
+1. **Settings → Secrets and variables → Actions**.
+2. **New repository secret**.
 3. Name: `GEMINI_API_KEY`. Value: your key.
-4. Reference it in workflows as `${{ secrets.GEMINI_API_KEY }}`.
+4. Reference it as `${{ secrets.GEMINI_API_KEY }}`.
 
-`GITHUB_TOKEN` is provided automatically by GitHub Actions — you do not need to configure it unless you want to use a PAT with broader scopes. The default token has the permissions defined in your workflow's `permissions:` block.
+`GITHUB_TOKEN` is provided automatically by GitHub Actions. You only need your own PAT if you want broader scopes than the default token's `permissions:` block.
 
 ## Examples
 
 Five complete workflows live in [`examples/`](examples/). Copy any of them into `.github/workflows/` and adjust the prompt:
 
-- [examples/pr-security-review.yml](examples/pr-security-review.yml) — Security-focused PR review on every open/sync.
-- [examples/issue-triage.yml](examples/issue-triage.yml) — Auto-classifies and labels new issues.
-- [examples/changelog-from-prs.yml](examples/changelog-from-prs.yml) — Generates CHANGELOG sections from merged PRs.
-- [examples/weekly-dependency-audit.yml](examples/weekly-dependency-audit.yml) — Scheduled dependency vulnerability audit.
-- [examples/auto-label-by-content.yml](examples/auto-label-by-content.yml) — Labels issues by content using a controlled allowlist.
+- [examples/pr-security-review.yml](examples/pr-security-review.yml): Security-focused PR review on every open/sync.
+- [examples/issue-triage.yml](examples/issue-triage.yml): Auto-classifies and labels new issues.
+- [examples/changelog-from-prs.yml](examples/changelog-from-prs.yml): Generates CHANGELOG sections from merged PRs.
+- [examples/weekly-dependency-audit.yml](examples/weekly-dependency-audit.yml): Scheduled dependency vulnerability audit.
+- [examples/auto-label-by-content.yml](examples/auto-label-by-content.yml): Labels issues by content using a controlled allowlist.
 
 ## Skills and AGENTS.md
 
-Skills are short, named instructions the agent can request mid-run. They live in `.agent/skills/<name>/SKILL.md` and follow the same format used by Anthropic's Skills system. The runner discovers them at startup, exposes their `name` and `description` to the agent, and only injects the body when the agent explicitly requests it.
+Skills are short, named instructions the agent can pull in mid-run. They live in `.agent/skills/<name>/SKILL.md` and use the same format as Anthropic's Skills system. The runner discovers them at startup, shows the agent just their `name` and `description`, and only injects the body when the agent explicitly asks for it.
 
 ### Sample skill
 
@@ -134,7 +136,7 @@ metadata:
 
 # Security Review
 
-Review the provided diff against the following checklist. Cite specific lines.
+Review the provided diff against the checklist below. Cite specific lines.
 
 ## Injection
 - SQL injection (string-concatenated queries)
@@ -154,12 +156,12 @@ Review the provided diff against the following checklist. Cite specific lines.
 ## Output format
 
 Return a Markdown report with one section per finding. Severity must be one of:
-CRITICAL, HIGH, MEDIUM, LOW. If no findings, return "No issues found."
+CRITICAL, HIGH, MEDIUM, LOW. If nothing turns up, return "No issues found."
 ```
 
 ### Sample AGENTS.md
 
-`AGENTS.md` lives at the repo root and is injected as a system message on every run. It describes project conventions in one place, so the same file works with Claude Code, Codex, Antigravity 2.0, and this action.
+`AGENTS.md` lives at the repo root and is injected as a system message on every run. The same file works with Claude Code, Codex, Antigravity 2.0, and this action.
 
 ```markdown
 # AGENTS.md
@@ -170,7 +172,7 @@ Server-side TypeScript service. Node 20. Strict TS. ESM only.
 ## Conventions
 - Immutable data structures. No in-place mutation.
 - Errors thrown as typed classes, never plain strings.
-- No `console.log` in shipped code — use the `logger` module.
+- No `console.log` in shipped code; use the `logger` module.
 
 ## Review priorities
 1. Correctness and type safety
@@ -185,26 +187,26 @@ Server-side TypeScript service. Node 20. Strict TS. ESM only.
 
 ### Skill loading protocol
 
-The agent never sees skill bodies by default. To request a skill, the agent emits a self-closing tag on its own line:
+The agent doesn't see skill bodies by default. To request one, it emits a self-closing tag on its own line:
 
 ```
 <skill name="security-review"/>
 ```
 
-The runner parses the tag, looks up the skill, and appends the skill body to the user prompt for the next iteration under a `## Skill: <name>` markdown heading. This keeps the system prompt small and lets the agent pull in just what it needs.
+The runner parses the tag, looks up the skill, and appends the body to the user prompt for the next iteration under a `## Skill: <name>` heading. The system prompt stays small; the agent only pulls in what it needs.
 
 ## Cost controls
 
-`max-tokens` is a **hard cap**, not a soft target. Enforcement happens in two places:
+`max-tokens` is a hard cap, not a soft target. Enforcement happens in two places:
 
-1. **Preflight** — before the first API call, the runner estimates input tokens from `systemPrompt + userPrompt` using a 4-chars/token heuristic. If the estimate already exceeds the cap, the run aborts before any billing.
-2. **Per-iteration** — after each model call the runner records the API-reported token usage. If the running total crosses the cap, the next iteration is skipped and the loop exits with a `BudgetExceededError`.
+1. **Preflight**. Before the first API call, the runner estimates input tokens from `systemPrompt + userPrompt` using a 4-chars/token heuristic. If that estimate already exceeds the cap, the run aborts before any billing.
+2. **Per-iteration**. After each model call the runner records the API-reported token usage. If the running total crosses the cap, the next iteration is skipped and the loop exits with a `BudgetExceededError`.
 
-The runner counts **all three** billable token categories: prompt input, visible response, and hidden "thinking" tokens used by Gemini 2.5+/3.x flash models. The cost guard reads `responseTokenCount` and `thoughtsTokenCount` from the API's usage metadata, so the reported `tokens-used` matches what Google bills.
+The runner counts all three billable categories: prompt input, visible response, and hidden "thinking" tokens used by Gemini 2.5+/3.x flash models. It reads `responseTokenCount` and `thoughtsTokenCount` directly from the API's usage metadata, so reported `tokens-used` matches what Google bills.
 
-What this means in practice: the *last* call that tips the budget is **not** aborted before it runs — a synchronous API can't be cancelled mid-flight. But every subsequent call is suppressed, so a runaway loop is capped to one over-budget completion at most.
+One caveat: the *last* call that tips the budget isn't aborted mid-flight, since a synchronous API can't be cancelled once the request is in motion. But every subsequent call is suppressed, so a runaway loop costs at most one extra completion.
 
-For the most predictable cost, set `thinking-budget: 0` to disable the thinking phase entirely. For code review and triage tasks where reasoning quality matters, leave it at the model default and accept that thinking can consume up to half the response budget.
+For predictable cost, set `thinking-budget: 0`. For code review and triage where reasoning quality matters, leave it at the default.
 
 ### Verified numbers
 
@@ -216,16 +218,11 @@ Same 25-token prompt ("In one sentence: what is a GitHub Action?") against `gemi
 | `thinking-budget: 0` (disabled) | 0.97s | 25 | 38 | 0 | **63** |
 | `thinking-budget` unset (second run) | 2.38s | 25 | 38 | 367 | **430** |
 
-Disabling thinking made this particular task **~2.2× faster** and **~5.7× cheaper** with no measurable quality difference. Use `thinking-budget: 0` for fixed-allowlist labeling and templated summaries; leave it at the default for PR review and triage where reasoning helps.
+Disabling thinking made this task ~2.2× faster and ~5.7× cheaper with no measurable quality difference. Good default for fixed-allowlist labeling and templated summaries. Leave it on for PR review.
 
-The `BudgetExceededError` carries `used` and `budget` fields and produces a message like `Token budget exceeded: 8210 > 8000`.
+`BudgetExceededError` carries `used` and `budget` and produces a message like `Token budget exceeded: 8210 > 8000`.
 
-Two outputs are always populated, even on abort:
-
-- `tokens-used` — total tokens across all iterations
-- `budget-remaining` — `max-tokens` - `tokens-used`, clamped at 0
-
-This makes it straightforward to graph spend in a dashboard or fail downstream steps when a run gets close to the ceiling.
+`tokens-used` and `budget-remaining` are populated even on abort, which makes it easy to graph spend or fail downstream steps when a run gets close to the ceiling.
 
 ## Migration from `run-gemini-cli`
 
@@ -236,26 +233,26 @@ For most workflows, migration is a one-line change:
 + uses: dariomonopoli-dev/flash-3.5-action@v1
 ```
 
-Input names differ slightly (`gemini_api_key` → `api-key`, `gemini_model` → `model`). The full mapping, side-by-side YAML diffs for the top three use cases, and a list of features that do not yet map are in [docs/migration-from-gemini-cli.md](docs/migration-from-gemini-cli.md).
+Input names differ slightly (`gemini_api_key` → `api-key`, `gemini_model` → `model`). Full mapping and side-by-side YAML diffs for the top three use cases live in [docs/migration-from-gemini-cli.md](docs/migration-from-gemini-cli.md).
 
 ## Roadmap
 
-Honest about scope. No promises on dates beyond the June 18 deadline.
+No date promises beyond the June 18 deadline.
 
-- **v0.2** — TypeScript migration, retries with exponential backoff, response streaming.
-- **v0.3** — Native artifact format that mirrors Antigravity task artifacts (so the same output works across runners).
-- **v0.4** — Dynamic subagent orchestration (`<subagent .../>` tags with isolated context windows).
-- **v1.0** — Optional Antigravity CLI binary backend, switchable via `backend:` input, when `--headless` ships.
+- **v0.2**: TypeScript migration, response streaming.
+- **v0.3**: Native artifact format that mirrors Antigravity task artifacts.
+- **v0.4**: Dynamic subagent orchestration (`<subagent .../>` tags with isolated context windows).
+- **v1.0**: Optional Antigravity CLI backend, switchable via `backend:` input, when `--headless` ships.
 
-Things deliberately out of scope until they prove necessary:
+Not planned:
 
-- A bespoke plugin marketplace. `AGENTS.md` plus skills covers most of what plugins do, and stays portable across tools.
-- A streaming UI for action logs. GitHub's log viewer is sufficient.
-- Multi-model routing. If you want Pro, use Pro. This action is Flash-focused on purpose.
+- A bespoke plugin marketplace. `AGENTS.md` plus skills covers most of what plugins do and stays portable.
+- A streaming UI for action logs. GitHub's log viewer is fine.
+- Multi-model routing. If you want Pro, use Pro.
 
 ## Contributing
 
-PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, build, and PR conventions. By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, build steps, and PR conventions. By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
