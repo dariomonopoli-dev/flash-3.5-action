@@ -267,3 +267,4 @@ Apache-2.0. See [LICENSE](LICENSE).
 - The `SKILL.md` format and skill-request protocol are adopted from Anthropic's Skills system.
 - Not affiliated with Google, Anthropic, or any model provider. "Gemini" and related marks belong to their respective owners.
 
+
